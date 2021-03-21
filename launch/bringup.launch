@@ -1,0 +1,31 @@
+<launch>
+    <arg name="baudrate" default="$(env PIBOT_DRIVER_BAUDRATE)"  doc="pibot driver baudrate"/>
+    <arg name="publish_odom_tf" default="true"  doc="pub tf"/>
+    <arg name="use_imu" default="true"  doc="use imu"/>
+    <arg name="use_accelerometer" default="true"  doc="use acce"/>
+    <arg name="use_gyroscope" default="true"  doc="use gyro"/>
+    <arg name="use_magnetometer" default="true"  doc="use mag"/>
+    <arg name="cali_imu_startup" default="true"  doc="use mag"/>
+
+	<!-- PIBOT DRIVER -->
+    <node name="pibot_driver" pkg="pibot_bringup" type="pibot_driver" output="screen">
+        <param name="base_frame" value="base_link" />
+        <param name="baudrate" value="$(arg baudrate)" />
+        <param name="cmd_vel_topic" value="cmd_vel" />
+        <param name="odom_frame" value="odom" />
+        <param name="odom_topic" value="odom" if="$(arg publish_odom_tf)"/>
+        <param name="odom_topic" value="wheel_odom" unless="$(arg publish_odom_tf)" /> 
+        <param name="out_pid_debug_enable" value="false" />
+        <param name="port" value="/dev/pibot" />
+        <param name="publish_odom_tf" value="$(arg publish_odom_tf)" />
+        <param name="freq" value="100" />
+        <rosparam if="$(arg use_imu)">
+            imu/accelerometer_bias: {x: 0.005436, y: 0.014684, z: -0.395418}
+            imu/gyroscope_bias: {x: -0.035592, y: 0.080670, z: 0.001216}
+        </rosparam>
+        <param name="imu/use_accelerometer" value="$(arg use_accelerometer)" if="$(arg use_imu)"/>
+        <param name="imu/use_gyroscope" value="$(arg use_gyroscope)" if="$(arg use_imu)"/>
+        <param name="imu/use_magnetometer" value="$(arg use_magnetometer)" if="$(arg use_imu)"/>
+        <param name="imu/perform_calibration" value="$(arg cali_imu_startup)" if="$(arg use_imu)"/>
+    </node>
+</launch>
