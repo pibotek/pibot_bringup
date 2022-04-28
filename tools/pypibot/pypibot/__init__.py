@@ -1,8 +1,8 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
-from assistant import *
-import log as Logger
-import err
+import pypibot.assistant
+import pypibot.log as Logger
+import pypibot.err
 log=Logger.log
 import sys
 def createNamedLog(name):

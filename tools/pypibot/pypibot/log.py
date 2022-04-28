@@ -3,9 +3,12 @@
 import sys,os
 import datetime
 import threading
-import assistant
+import pypibot.assistant as assistant
 import platform
-import thread
+if assistant.is_python3():
+    import _thread
+else:
+    import thread
 import traceback
 """
 %a Locale’s abbreviated weekday name.   
@@ -47,6 +50,8 @@ INFORMATION=3
 WARNING=2
 ERROR=1
 NONE=0
+
+MAX_MSG_SIZE = 4096
 
 def getLevelFromString(level):
     level=level.lower()
@@ -92,6 +97,14 @@ class PibotLog:
                 path=os.path.dirname(fn)
                 if path!="" and not os.path.isdir(path):os.makedirs(path)
                 self.fd=open(fn,mode="w")
+                try:
+                    linkfn = fn.split(".log.", 1)[0] + ".INFO"
+                    if os.path.exists(linkfn):
+                        os.remove(linkfn)
+                    (filepath, tempfilename) = os.path.split(fn)
+                    os.symlink(tempfilename, linkfn)
+                except:
+                    pass
                 self.fd_day=datetime.datetime.now().day
                 self.filePath=fn
             except Exception as e:
@@ -104,7 +117,7 @@ class PibotLog:
                 for arg in args:
                     if isinstance(arg,Exception):
                         t.append(traceback.format_exc(arg).decode('utf-8'))
-                    elif isinstance(arg,str) :
+                    elif isinstance(arg,bytes) :
                         t.append(arg.decode('utf-8'))
                     else:
                         t.append(arg) 
@@ -117,10 +130,14 @@ class PibotLog:
                             msg=msg+str(arg)+" "
                     except Exception as e:
                         msg=msg+"==LOG ERROR==>%s"%(e)
-            if len(msg)>4096:msg=msg[0:4096]
+            if len(msg)>MAX_MSG_SIZE:msg=msg[0:MAX_MSG_SIZE]
             now=datetime.datetime.now()
             msg=msg+"\r\n"
-            s="[%s] %04d-%02d-%02d %02d:%02d:%02d.%03d (0x%04X):%s"%(getLevelString(level),now.year,now.month,now.day,now.hour,now.minute,now.second,now.microsecond/1000,(thread.get_ident()>>8)&0xffff,msg)
+            if assistant.is_python3():
+                id = _thread.get_ident()
+            else:
+                id = thread.get_ident()
+            s="[%s] %04d-%02d-%02d %02d:%02d:%02d.%03d (0x%04X):%s"%(getLevelString(level),now.year,now.month,now.day,now.hour,now.minute,now.second,now.microsecond/1000,(id>>8)&0xffff,msg)
             prefix=''
             suffix=''
             if not isWindows:
@@ -144,12 +161,19 @@ class PibotLog:
                 if self.fd:
                     if self.fd_day!=now.day:
                         self.updateFilelog()
-                    self.fd.write(s.encode('utf-8'))
+                    if assistant.is_python3():
+                        self.fd.write(s)
+                    else:
+                        self.fd.write(s.encode('utf-8'))
                     self.fd.flush()
             finally:
                 self._lock.release()
         except Exception as e:
-            print("PibotLog._output crash!err=%s"%traceback.format_exc(e))
+            if assistant.is_python3():
+                print(e)
+            else:
+                print("PibotLog._output crash!err=%s"%traceback.format_exc(e))
+
     def trace(self,msg,*args):
         self._output(TRACE,msg,args)
     def t(self,msg,*args):

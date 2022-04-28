@@ -2,6 +2,7 @@ import sys
 sys.path.append("..")
 import pypibot
 from pypibot import log
+from pypibot import assistant
 
 import serial
 import threading
@@ -19,9 +20,14 @@ class Recstate():
 
 def checksum(d):
     sum = 0
-    for i in d:
-        sum += ord(i)
-        sum = sum&0xff
+    if assistant.is_python3():
+        for i in d:
+            sum += i
+            sum = sum&0xff
+    else:
+        for i in d:
+            sum += ord(i)
+            sum = sum&0xff
     return sum
 
 
@@ -63,35 +69,47 @@ class Transport:
         if len(s) == 0:
             return  False
         val = s[0]
+        val_int = val
+        if not assistant.is_python3():
+            val_int = ord(val)
+
         if self.receive_state == Recstate.WAITING_HD:
-            if ord(val) == FIX_HEAD:
-                
-                log.debug('got head')
+            if val_int == FIX_HEAD:
+                log.trace('got head')
                 self.rev_msg = []
                 self.rev_data =[]
                 self.rev_msg.append(val)
                 self.receive_state = Recstate.WAITING_MSG_ID
         elif self.receive_state == Recstate.WAITING_MSG_ID:
-            log.debug('got msg id')
+            log.trace('got msg id')
             self.rev_msg.append(val)
             self.receive_state = Recstate.RECEIVE_LEN
         elif self.receive_state == Recstate.RECEIVE_LEN:
-            log.debug('got len:%d', ord(val))
+            log.trace('got len:%d', val_int)
             self.rev_msg.append(val)
-            if ord(val) == 0:
+            if val_int == 0:
                 self.receive_state = Recstate.RECEIVE_CHECK
             else:
                 self.receive_state = Recstate.RECEIVE_PACKAGE
         elif self.receive_state == Recstate.RECEIVE_PACKAGE:
+            # if assistant.is_python3(): 
+            #     self.rev_data.append((chr(val)).encode('latin1'))
+            # else:
             self.rev_data.append(val)
-            if len(self.rev_data) == ord(self.rev_msg[-1]):
+            r = False
+            if assistant.is_python3(): 
+                r = len(self.rev_data) == int(self.rev_msg[-1])
+            else:
+                r = len(self.rev_data) == ord(self.rev_msg[-1])
+            
+            if r:
                 self.rev_msg.extend(self.rev_data)
                 self.receive_state = Recstate.RECEIVE_CHECK
         elif self.receive_state == Recstate.RECEIVE_CHECK:
-            log.debug('got check')
+            log.trace('got check')
             self.receive_state = Recstate.WAITING_HD
-            if ord(val) == checksum(self.rev_msg):
-                log.debug('got a complete message')
+            if val_int == checksum(self.rev_msg):
+                log.trace('got a complete message')
                 return True
         else:
             self.receive_state = Recstate.WAITING_HD
@@ -100,9 +118,17 @@ class Transport:
         return False
 
     def packageAnalysis(self):
-        in_msg_id = ord(self.rev_msg[1])
-        log.debug(bytes(self.rev_data))
-        if BoardDataDict[in_msg_id].unpack(''.join(self.rev_data)):
+        if assistant.is_python3(): 
+            in_msg_id = int(self.rev_msg[1])
+        else:
+            in_msg_id = ord(self.rev_msg[1])
+        if assistant.is_python3(): 
+            log.debug("recv body:" + " ".join("{:02x}".format(c) for c in self.rev_data))
+            r = BoardDataDict[in_msg_id].unpack(bytes(self.rev_data))
+        else:
+            log.debug("recv body:" + " ".join("{:02x}".format(ord(c)) for c in self.rev_data))
+            r = BoardDataDict[in_msg_id].unpack(''.join(self.rev_data))
+        if r:
             self.res_id = in_msg_id
             if in_msg_id<100:
                 self.set_response()
@@ -118,7 +144,7 @@ class Transport:
             return False
         if self.wait_for_response(timeout):
             if id == self.res_id:
-                log.debug ('OK')
+                log.trace ('OK')
             else:
                 log.error ('Got unmatched response!')
         else:
@@ -130,7 +156,10 @@ class Transport:
 
     def write(self, id):
         cmd = self.make_command(id)
-        log.d(" ".join("{:02x}".format(ord(c)) for c in cmd))
+        if assistant.is_python3():
+            log.d("write:" + " ".join("{:02x}".format(c) for c in cmd))
+        else:
+            log.d("write:" + " ".join("{:02x}".format(ord(c)) for c in cmd))
         self._Serial.write(cmd)
         return True
 
@@ -147,7 +176,11 @@ class Transport:
         l = [FIX_HEAD, id, len(data)]
         head = struct.pack("3B", *l)
         body = head + data
-        return body + chr(checksum(body))
+        
+        if assistant.is_python3():
+            return body + chr(checksum(body)).encode('latin1')
+        else:
+            return body + chr(checksum(body))
 
 
 if __name__ == '__main__':

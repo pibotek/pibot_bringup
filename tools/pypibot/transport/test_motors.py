@@ -14,7 +14,7 @@ port="/dev/pibot"
 #for windows
 #port="com3"
 
-pypibot.enableGlobalExcept()
+pypibot.assistant.enableGlobalExcept()
 #log.enableFileLog(log_dir + "ros_$(Date8)_$(filenumber2).log")
 log.setLevel("i")
 

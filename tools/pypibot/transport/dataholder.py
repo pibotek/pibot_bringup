@@ -141,7 +141,7 @@ class SetRobotParameters(RobotMessage):
                 self.param.encoder_nonexchange_flag,
                 self.param.reserve]
 
-        print data
+        print(data)
         pk = struct.pack('<3H1B8H1B1H3B%ds'%(64-(3*2+1+8*2+1+2+3)), *data)
         return pk
 

@@ -229,4 +229,6 @@ def waitExit():
             time.sleep(1)
     except Exception as e:
         log.log.w("recv exit sign!")
-    
+
+def is_python3():
+    return sys.hexversion > 0x03000000
