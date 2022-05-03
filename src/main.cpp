@@ -1,13 +1,9 @@
-#include <ros/ros.h>
-#include "pibot_bringup/base_driver.h"
+#include "rclcpp/rclcpp.hpp"
 
-int main(int argc, char *argv[])
-{
-    ros::init(argc, argv, "pibot_driver");
-    
-    BaseDriver::Instance()->work_loop();
+int main(int argc, char* argv[]) {
+  rclcpp::init(argc, argv);
 
-    ros::spin();
+  rclcpp::shutdown();
 
-    return 0;
+  return 0;
 }
