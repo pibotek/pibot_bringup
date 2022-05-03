@@ -8,12 +8,19 @@ endif()
 # find dependencies
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
+find_package(geometry_msgs REQUIRED)
+
+include_directories(
+  include include
+)
 
 add_executable(pibot_driver src/main.cpp
+                            src/base_driver.cpp
                       )
 
 ament_target_dependencies(pibot_driver 
-                      rclcpp)
+                      rclcpp
+                      geometry_msgs)
 
 install(TARGETS
   pibot_driver
