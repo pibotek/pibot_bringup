@@ -4,6 +4,8 @@
 #include "pibot_bringup/serial_transport.h"
 #include "pibot_bringup/simple_dataframe_master.h"
 
+#include <tf2/LinearMath/Quaternion.h>
+
 // #include <std_msgs/Float32MultiArray.h>
 // #include "serial_transport.h"
 // #include "simple_dataframe_master.h"
@@ -77,35 +79,40 @@ void BaseDriver::init_cmd_odom() {
                                                                       std::bind(&BaseDriver::cmd_vel_callback, this, std::placeholders::_1));
 
   RCLCPP_INFO(this->get_logger(), "advertise odom topic on [%s]", config_.odom_topic.c_str());
-  // odom_pub = nh.advertise<nav_msgs::Odometry>(bdg.odom_topic, 50);
+  odom_pub_ = this->create_publisher<nav_msgs::msg::Odometry>(config_.odom_topic, 10);
 
-  // //init odom_trans
-  // odom_trans.header.frame_id = bdg.odom_frame;
-  // odom_trans.child_frame_id = bdg.base_frame;
+  odom_broadcaster_ = std::make_unique<tf2_ros::TransformBroadcaster>(*this);
 
-  // odom_trans.transform.translation.z = 0;
+  // init odom_tf
+  odom_tf.header.frame_id = config_.odom_frame;
+  odom_tf.child_frame_id = config_.base_frame;
+  odom_tf.transform.translation.z = 0;
 
-  // //init odom
-  // odom.header.frame_id = bdg.odom_frame;
-  // odom.pose.pose.position.z = 0.0;
-  // odom.child_frame_id = bdg.base_frame;
-  // odom.twist.twist.linear.y = 0;
+  // init odom
+  odom_msg_.header.frame_id = config_.odom_frame;
+  odom_msg_.pose.pose.position.z = 0.0;
+  odom_msg_.child_frame_id = config_.base_frame;
+  odom_msg_.twist.twist.linear.y = 0;
 
-  // if (!bdg.publish_odom_tf) {
-  //     odom.pose.covariance =  boost::assign::list_of(1e-3) (0) (0)  (0)  (0)  (0)
-  //                                                 (0) (1e-3)  (0)  (0)  (0)  (0)
-  //                                                 (0)   (0)  (1e6) (0)  (0)  (0)
-  //                                                 (0)   (0)   (0) (1e6) (0)  (0)
-  //                                                 (0)   (0)   (0)  (0) (1e6) (0)
-  //                                                 (0)   (0)   (0)  (0)  (0)  (1e3) ;
+  if (!config_.publish_tf) {
+    for (unsigned int i = 0; i < odom_msg_.pose.covariance.size(); ++i) {
+      odom_msg_.pose.covariance[i] = 0.0;
+      odom_msg_.twist.covariance[i] = 0.0;
+    }
 
-  //     odom.twist.covariance =  boost::assign::list_of(1e-3) (0)   (0)  (0)  (0)  (0)
-  //                                                 (0) (1e-3)  (0)  (0)  (0)  (0)
-  //                                                 (0)   (0)  (1e6) (0)  (0)  (0)
-  //                                                 (0)   (0)   (0) (1e6) (0)  (0)
-  //                                                 (0)   (0)   (0)  (0) (1e6) (0)
-  //                                                 (0)   (0)   (0)  (0)  (0)  (1e3) ;
-  // }
+    odom_msg_.pose.covariance[0] = 0.001;
+    odom_msg_.pose.covariance[7] = 0.001;
+    odom_msg_.pose.covariance[14] = 0.001;
+    odom_msg_.pose.covariance[21] = 0.001;
+    odom_msg_.pose.covariance[28] = 0.001;
+    odom_msg_.pose.covariance[35] = 0.03;
+    odom_msg_.twist.covariance[0] = 0.001;
+    odom_msg_.twist.covariance[7] = 0.001;
+    odom_msg_.twist.covariance[14] = 0.001;
+    odom_msg_.twist.covariance[21] = 0.001;
+    odom_msg_.twist.covariance[28] = 0.001;
+    odom_msg_.twist.covariance[35] = 0.03;
+  }
 
   need_update_speed_ = false;
 }
@@ -211,7 +218,7 @@ void BaseDriver::work_loop() {
   while (rclcpp::ok()) {
     //     update_param();
 
-    //     update_odom();
+    update_odom();
 
     //     update_pid_debug();
 
@@ -241,39 +248,48 @@ void BaseDriver::update_param() {
 }
 
 void BaseDriver::update_odom() {
-  // frame_->interact(ID_GET_ODOM);
+  frame_->interact(ID_GET_ODOM);
 
-  // ros::Time current_time = ros::Time::now();
+  auto now = this->get_clock()->now();
 
-  // float x = DataHolder::get()->odom.x*0.01;
-  // float y = DataHolder::get()->odom.y*0.01;
-  // float th = DataHolder::get()->odom.yaw*0.01;
+  float x = DataHolder::get()->odom.x * 0.01;
+  float y = DataHolder::get()->odom.y * 0.01;
+  float th = DataHolder::get()->odom.yaw * 0.01;
 
-  // float vxy = DataHolder::get()->odom.v_liner_x*0.01;
-  // float vth = DataHolder::get()->odom.v_angular_z*0.01;
+  float vxy = DataHolder::get()->odom.v_liner_x * 0.01;
+  float vth = DataHolder::get()->odom.v_angular_z * 0.01;
 
-  // //ROS_INFO("odom: x=%.2f y=%.2f th=%.2f vxy=%.2f vth=%.2f", x, y ,th, vxy,vth);
+  // RCLCPP_INFO(this->get_logger(), "odom: x=%.2f y=%.2f th=%.2f vxy=%.2f vth=%.2f", x, y ,th, vxy,vth);
 
-  // geometry_msgs::Quaternion odom_quat = tf::createQuaternionMsgFromYaw(th);
+  tf2::Quaternion q;
+  q.setRPY(0.0, 0.0, th);
 
-  // //publish_odom_tf
-  // if (bdg.publish_odom_tf) {
-  //     odom_trans.header.stamp = current_time;
-  //     odom_trans.transform.translation.x = x;
-  //     odom_trans.transform.translation.y = y;
-  //     odom_trans.transform.rotation = odom_quat;
-  //     odom_broadcaster.sendTransform(odom_trans);
-  // }
+  // publish_tf
+  if (config_.publish_tf) {
+    odom_tf.header.stamp = now;
+    odom_tf.transform.translation.x = x;
+    odom_tf.transform.translation.y = y;
 
-  // //publish the message
-  // odom.header.stamp = current_time;
-  // odom.pose.pose.position.x = x;
-  // odom.pose.pose.position.y = y;
-  // odom.pose.pose.orientation = odom_quat;
-  // odom.twist.twist.linear.x = vxy;
-  // odom.twist.twist.angular.z = vth;
+    odom_tf.transform.rotation.x = q.x();
+    odom_tf.transform.rotation.y = q.y();
+    odom_tf.transform.rotation.z = q.z();
+    odom_tf.transform.rotation.w = q.w();
 
-  // odom_pub.publish(odom);
+    odom_broadcaster_->sendTransform(odom_tf);
+  }
+
+  // publish the message
+  odom_msg_.header.stamp = now;
+  odom_msg_.pose.pose.position.x = x;
+  odom_msg_.pose.pose.position.y = y;
+  odom_msg_.pose.pose.orientation.x = q.x();
+  odom_msg_.pose.pose.orientation.y = q.y();
+  odom_msg_.pose.pose.orientation.z = q.z();
+  odom_msg_.pose.pose.orientation.w = q.w();
+  odom_msg_.twist.twist.linear.x = vxy;
+  odom_msg_.twist.twist.angular.z = vth;
+
+  odom_pub_->publish(odom_msg_);
 }
 
 void BaseDriver::update_speed() {

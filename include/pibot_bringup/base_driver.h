@@ -5,8 +5,10 @@
 #include "rclcpp/rclcpp.hpp"
 
 #include <geometry_msgs/msg/twist.hpp>
-// #include <tf/transform_broadcaster.h>
-// #include <nav_msgs/Odometry.h>
+#include <nav_msgs/msg/odometry.hpp>
+#include <tf2_ros/transform_broadcaster.h>
+#include <geometry_msgs/msg/transform_stamped.hpp>
+
 // #include <std_msgs/Int16.h>
 // #include <std_msgs/Int32.h>
 // #include "pibot_bringup/transport.h"
@@ -43,12 +45,12 @@ class BaseDriver : public rclcpp::Node {
   std::shared_ptr<Dataframe> frame_;
 
   rclcpp::Subscription<geometry_msgs::msg::Twist>::SharedPtr cmd_vel_sub_;
+  rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr odom_pub_;
 
-  // ros::Publisher odom_pub;
+  nav_msgs::msg::Odometry odom_msg_;
 
-  // nav_msgs::Odometry odom;
-  // geometry_msgs::TransformStamped odom_trans;
-  // tf::TransformBroadcaster odom_broadcaster;
+  geometry_msgs::msg::TransformStamped odom_tf;
+  std::unique_ptr<tf2_ros::TransformBroadcaster> odom_broadcaster_;
 
   // #define MAX_MOTOR_COUNT 4
   // ros::Publisher pid_debug_pub_input[MAX_MOTOR_COUNT];
