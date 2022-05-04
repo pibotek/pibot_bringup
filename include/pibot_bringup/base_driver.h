@@ -1,7 +1,8 @@
-#include "rclcpp/rclcpp.hpp"
+#include "pibot_bringup/base_driver_config.h"
 
-// #include <boost/shared_ptr.hpp>
-// #include "base_driver_config.h"
+#include <memory>
+#include "pibot_bringup/transport.h"
+#include "rclcpp/rclcpp.hpp"
 
 #include <geometry_msgs/msg/twist.hpp>
 // #include <tf/transform_broadcaster.h>
@@ -15,6 +16,7 @@
 // #include <sensor_msgs/MagneticField.h>
 // #include <geometry_msgs/Vector3Stamped.h>
 
+class Dataframe;
 class BaseDriver : public rclcpp::Node {
  public:
   BaseDriver();
@@ -35,14 +37,10 @@ class BaseDriver : public rclcpp::Node {
   void update_pid_debug();
   void update_imu();
 
- public:
-  // BaseDriverConfig& getBaseDriverConfig() {
-  // 	return bdg;
-  // }
  private:
-  // BaseDriverConfig bdg;
-  // boost::shared_ptr<Transport> trans;
-  // boost::shared_ptr<Dataframe> frame;
+  BaseDriverConfig config_;
+  std::shared_ptr<Transport> trans_;
+  std::shared_ptr<Dataframe> frame_;
 
   rclcpp::Subscription<geometry_msgs::msg::Twist>::SharedPtr cmd_vel_sub_;
 
@@ -52,9 +50,6 @@ class BaseDriver : public rclcpp::Node {
   // geometry_msgs::TransformStamped odom_trans;
   // tf::TransformBroadcaster odom_broadcaster;
 
-  // ros::NodeHandle nh;
-  // ros::NodeHandle pn;
-
   // #define MAX_MOTOR_COUNT 4
   // ros::Publisher pid_debug_pub_input[MAX_MOTOR_COUNT];
   // ros::Publisher pid_debug_pub_output[MAX_MOTOR_COUNT];
@@ -62,7 +57,7 @@ class BaseDriver : public rclcpp::Node {
   // std_msgs::Int32 pid_debug_msg_input[MAX_MOTOR_COUNT];
   // std_msgs::Int32 pid_debug_msg_output[MAX_MOTOR_COUNT];
 
-  // bool need_update_speed;
+  bool need_update_speed_{false};
 
   // // imu
   // bool use_accelerometer, use_gyroscope, use_magnetometer;

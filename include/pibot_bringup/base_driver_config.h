@@ -1,59 +1,53 @@
 #ifndef BASE_DRIVER_CONFIG_
 #define BASE_DRIVER_CONFIG_
 
-#include <ros/ros.h>
+#include <memory>
+#include <string>
+#include "rclcpp/rclcpp.hpp"
 
 #define USE_DYNAMIC_RECONFIG
 #ifdef USE_DYNAMIC_RECONFIG
-#include <dynamic_reconfigure/server.h>
-#include "pibot_bringup/pibot_driverConfig.h"
+// #include "pibot_bringup/pibot_driverConfig.h"
 #endif
 
 class Robot_parameter;
-class BaseDriverConfig
-{
-public:
-	BaseDriverConfig(ros::NodeHandle &p);
-	~BaseDriverConfig();
+class BaseDriverConfig {
+ public:
+  BaseDriverConfig();
+  ~BaseDriverConfig();
 
-	void init(Robot_parameter* r);
-	void SetRobotParameters();
+  void init(rclcpp::Node* node);
+  void SetRobotParameters(rclcpp::Node* node, Robot_parameter* r);
 
 #ifdef USE_DYNAMIC_RECONFIG
-	void dynamic_callback(pibot_bringup::pibot_driverConfig &config, uint32_t level);
-	bool get_param_update_flag();
-
-	private:
-	dynamic_reconfigure::Server<pibot_bringup::pibot_driverConfig > server;
-	dynamic_reconfigure::Server<pibot_bringup::pibot_driverConfig >::CallbackType f;
+  // void dynamic_callback(pibot_bringup::pibot_driverConfig& config, uint32_t level);
+  // bool get_param_update_flag();
 #endif
-public:
-	Robot_parameter* rp;
+ public:
+  Robot_parameter* rp;
 
-	std::string port;
-	int32_t baudrate;
+  std::string port;
+  int32_t baudrate;
 
-	std::string base_frame;
-	std::string odom_frame;
+  std::string base_frame;
+  std::string odom_frame;
 
-	bool publish_odom_tf;
+  bool publish_tf;
 
-	bool use_imu;
+  bool use_imu;
 
-	std::string cmd_vel_topic;
-	std::string odom_topic;
+  std::string cmd_vel_topic;
+  std::string odom_topic;
 
-	int32_t freq;
+  int32_t freq;
 
-	bool out_pid_debug_enable;
-	private:
+  bool out_pid_debug_enable;
+
+ private:
 #ifdef USE_DYNAMIC_RECONFIG
-	bool param_update_flag;
+  bool param_update_flag_;
 #endif
-	ros::NodeHandle& pn;
-	ros::ServiceClient client;
-
-	bool set_flag;
+  bool set_flag;
 };
 
 #endif

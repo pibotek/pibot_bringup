@@ -16,6 +16,10 @@ include_directories(
 
 add_executable(pibot_driver src/main.cpp
                             src/base_driver.cpp
+                            src/data_holder.cpp
+                            src/base_driver_config.cpp
+                            src/simple_dataframe_master.cpp
+                            src/serial_transport.cpp
                       )
 
 ament_target_dependencies(pibot_driver 
@@ -25,6 +29,11 @@ ament_target_dependencies(pibot_driver
 install(TARGETS
   pibot_driver
   DESTINATION lib/${PROJECT_NAME})
+
+install(
+  DIRECTORY launch
+  DESTINATION share/${PROJECT_NAME}
+)
 
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)

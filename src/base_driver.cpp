@@ -1,5 +1,8 @@
 #include "pibot_bringup/base_driver.h"
-// #include "data_holder.h"
+#include "pibot_bringup/data_holder.h"
+#include "pibot_bringup/dataframe.h"
+#include "pibot_bringup/serial_transport.h"
+#include "pibot_bringup/simple_dataframe_master.h"
 
 // #include <std_msgs/Float32MultiArray.h>
 // #include "serial_transport.h"
@@ -11,7 +14,6 @@
 
 BaseDriver::BaseDriver()
     : Node("pibot_dirver")
-//                         , bdg(pn)
 //                         , use_accelerometer(true)
 //                         , use_gyroscope(true)
 //                         , use_magnetometer(true)
@@ -19,38 +21,41 @@ BaseDriver::BaseDriver()
 //                         , perform_calibration(true)
 //                         , is_calibrated(false)
 {
-  // //init config
-  // bdg.init(&Data_holder::get()->parameter);
+  // init config
+  config_.init(this);
 
-  // trans = boost::make_shared<Serial_transport>(bdg.port, bdg.baudrate);
+  trans_ = std::make_shared<SerialTransport>(config_.port, config_.baudrate);
 
-  // frame = boost::make_shared<Simple_dataframe>(trans.get());
+  frame_ = std::make_shared<SimpleDataframe>(trans_);
 
   RCLCPP_INFO(this->get_logger(), "BaseDriver startup...");
-  // if (trans->init()) {
-  //     ROS_INFO("connected to main board");
-  // } else {
-  //     ROS_ERROR("oops!!! can't connect to main board, please check the usb connection or baudrate!");
-  //     return;
-  // }
+  if (trans_->init()) {
+    RCLCPP_INFO(this->get_logger(), "connected to main board");
+  } else {
+    RCLCPP_ERROR(this->get_logger(), "can't connect to main board, please check the usb connection or baudrate!");
+    return;
+  }
 
-  // frame->init();
+  frame_->init();
 
-  // for (int i=0;i<3;i++) {
-  //     if (frame->interact(ID_GET_VERSION))
-  //         break;
-  //     ros::Duration(1).sleep(); //wait for device
-  // }
+  for (int i = 0; i < 3; i++) {
+    RCLCPP_INFO(this->get_logger(), "get version");
+    if (frame_->interact(ID_GET_VERSION))
+      break;
 
-//   RCLCPP_INFO(this->get_logger(), "robot version:%s build time:%s",
-//               Data_holder::get()->firmware_info.version,
-//               Data_holder::get()->firmware_info.time);
+    using namespace std::chrono_literals;
+    std::this_thread::sleep_for(1s);
+  }
+
+  RCLCPP_INFO(this->get_logger(), "robot version:%s build time:%s",
+              DataHolder::get()->firmware_info.version,
+              DataHolder::get()->firmware_info.time);
 
   init_cmd_odom();
 
-  // init_pid_debug();
+  init_pid_debug();
 
-  // read_param();
+  read_param();
 
   // if (bdg.use_imu) {
   //     init_imu();
@@ -63,15 +68,15 @@ BaseDriver::~BaseDriver() {
 }
 
 void BaseDriver::init_cmd_odom() {
-  // frame->interact(ID_INIT_ODOM);
+  frame_->interact(ID_INIT_ODOM);
 
-  RCLCPP_INFO(this->get_logger(), "subscribe cmd topic on [%s]", "/cmd_vel");
+  RCLCPP_INFO(this->get_logger(), "subscribe cmd topic on [%s]", config_.cmd_vel_topic.c_str());
 
-  cmd_vel_sub_ = this->create_subscription<geometry_msgs::msg::Twist>("/cmd_vel",
+  cmd_vel_sub_ = this->create_subscription<geometry_msgs::msg::Twist>(config_.cmd_vel_topic,
                                                                       10,
                                                                       std::bind(&BaseDriver::cmd_vel_callback, this, std::placeholders::_1));
 
-  // ROS_INFO_STREAM("advertise odom topic on [" << bdg.odom_topic << "]");
+  RCLCPP_INFO(this->get_logger(), "advertise odom topic on [%s]", config_.odom_topic.c_str());
   // odom_pub = nh.advertise<nav_msgs::Odometry>(bdg.odom_topic, 50);
 
   // //init odom_trans
@@ -102,7 +107,7 @@ void BaseDriver::init_cmd_odom() {
   //                                                 (0)   (0)   (0)  (0)  (0)  (1e3) ;
   // }
 
-  // need_update_speed = false;
+  need_update_speed_ = false;
 }
 
 void BaseDriver::init_pid_debug() {
@@ -180,28 +185,27 @@ void BaseDriver::init_imu() {
 }
 
 void BaseDriver::read_param() {
-  // Robot_parameter* param = &Data_holder::get()->parameter;
-  // memset(param,0, sizeof(Robot_parameter));
+  Robot_parameter* param = &DataHolder::get()->parameter;
+  memset(param, 0, sizeof(Robot_parameter));
 
-  // frame->interact(ID_GET_ROBOT_PARAMTER);
+  frame_->interact(ID_GET_ROBOT_PARAMTER);
 
-  // Data_holder::dump_params(param);
+  DataHolder::dump_params(param);
 
-  // bdg.SetRobotParameters();
+  config_.SetRobotParameters(this, &DataHolder::get()->parameter);
 }
 
 void BaseDriver::cmd_vel_callback(const geometry_msgs::msg::Twist::SharedPtr vel_cmd) {
   RCLCPP_INFO(this->get_logger(), "cmd_vel:[%.3f %.3f %.3f]", vel_cmd->linear.x, vel_cmd->linear.y, vel_cmd->angular.z);
 
-// Data_holder::get()->velocity.v_liner_x = vel_cmd.linear.x*100;
-// Data_holder::get()->velocity.v_liner_y = vel_cmd.linear.y*100;
-// Data_holder::get()->velocity.v_angular_z = vel_cmd.angular.z*100;
+  DataHolder::get()->velocity.v_liner_x = vel_cmd->linear.x * 100;
+  DataHolder::get()->velocity.v_liner_y = vel_cmd->linear.y * 100;
+  DataHolder::get()->velocity.v_angular_z = vel_cmd->angular.z * 100;
 
-// need_update_speed = true;
+  need_update_speed_ = true;
 }
 
 void BaseDriver::work_loop() {
-  // ros::Rate loop(bdg.freq);
   rclcpp::WallRate loop(100);
   rclcpp::Node::SharedPtr node(this);
   while (rclcpp::ok()) {
@@ -211,12 +215,12 @@ void BaseDriver::work_loop() {
 
     //     update_pid_debug();
 
-    //     update_speed();
+    update_speed();
 
     //     if (bdg.use_imu) {
-    //         if (Data_holder::get()->parameter.imu_type == IMU_TYPE_GY65
-    //             || Data_holder::get()->parameter.imu_type == IMU_TYPE_GY85
-    //             || Data_holder::get()->parameter.imu_type == IMU_TYPE_GY87) {
+    //         if (DataHolder::get()->parameter.imu_type == IMU_TYPE_GY65
+    //             || DataHolder::get()->parameter.imu_type == IMU_TYPE_GY85
+    //             || DataHolder::get()->parameter.imu_type == IMU_TYPE_GY87) {
     //             update_imu();
     //         }
     //     }
@@ -229,7 +233,7 @@ void BaseDriver::work_loop() {
 void BaseDriver::update_param() {
   // #ifdef USE_DYNAMIC_RECONFIG
   //     if (bdg.get_param_update_flag()) {
-  //         frame->interact(ID_SET_ROBOT_PARAMTER);
+  //         frame_->interact(ID_SET_ROBOT_PARAMTER);
   //         ros::Rate loop(5);
   //         loop.sleep();
   //     }
@@ -237,16 +241,16 @@ void BaseDriver::update_param() {
 }
 
 void BaseDriver::update_odom() {
-  // frame->interact(ID_GET_ODOM);
+  // frame_->interact(ID_GET_ODOM);
 
   // ros::Time current_time = ros::Time::now();
 
-  // float x = Data_holder::get()->odom.x*0.01;
-  // float y = Data_holder::get()->odom.y*0.01;
-  // float th = Data_holder::get()->odom.yaw*0.01;
+  // float x = DataHolder::get()->odom.x*0.01;
+  // float y = DataHolder::get()->odom.y*0.01;
+  // float th = DataHolder::get()->odom.yaw*0.01;
 
-  // float vxy = Data_holder::get()->odom.v_liner_x*0.01;
-  // float vth = Data_holder::get()->odom.v_angular_z*0.01;
+  // float vxy = DataHolder::get()->odom.v_liner_x*0.01;
+  // float vth = DataHolder::get()->odom.v_angular_z*0.01;
 
   // //ROS_INFO("odom: x=%.2f y=%.2f th=%.2f vxy=%.2f vth=%.2f", x, y ,th, vxy,vth);
 
@@ -273,19 +277,19 @@ void BaseDriver::update_odom() {
 }
 
 void BaseDriver::update_speed() {
-  // if (need_update_speed) {
+  // if (need_update_speed_) {
   //     ROS_INFO_STREAM("update_speed");
-  //     need_update_speed = !(frame->interact(ID_SET_VELOCITY));
+  //     need_update_speed_ = !(frame_->interact(ID_SET_VELOCITY));
   // }
 }
 
 void BaseDriver::update_pid_debug() {
   // if (bdg.out_pid_debug_enable) {
-  //     frame->interact(ID_GET_PID_DATA);
+  //     frame_->interact(ID_GET_PID_DATA);
 
   //     for (size_t i = 0; i < MAX_MOTOR_COUNT; i++) {
-  //         pid_debug_msg_input[i].data = Data_holder::get()->pid_data.input[i];
-  //         pid_debug_msg_output[i].data = Data_holder::get()->pid_data.output[i];
+  //         pid_debug_msg_input[i].data = DataHolder::get()->pid_data.input[i];
+  //         pid_debug_msg_output[i].data = DataHolder::get()->pid_data.output[i];
 
   //         pid_debug_pub_input[i].publish(pid_debug_msg_input[i]);
   //         pid_debug_pub_output[i].publish(pid_debug_msg_output[i]);
@@ -294,7 +298,7 @@ void BaseDriver::update_pid_debug() {
 }
 
 void BaseDriver::update_imu() {
-  // frame->interact(ID_GET_IMU_DATA);
+  // frame_->interact(ID_GET_IMU_DATA);
 
   // if (!use_accelerometer) {
   // 	ROS_ERROR_ONCE("Accelerometer not found!");
@@ -312,13 +316,13 @@ void BaseDriver::update_imu() {
   // 	static int taken_samples;
 
   // 	if (taken_samples < calibration_samples) {
-  // 		acceleration_bias["x"] += Data_holder::get()->imu_data[0];
-  // 		acceleration_bias["y"] += Data_holder::get()->imu_data[1];
-  // 		acceleration_bias["z"] += Data_holder::get()->imu_data[2];
+  // 		acceleration_bias["x"] += DataHolder::get()->imu_data[0];
+  // 		acceleration_bias["y"] += DataHolder::get()->imu_data[1];
+  // 		acceleration_bias["z"] += DataHolder::get()->imu_data[2];
 
-  // 		gyroscope_bias["x"] += Data_holder::get()->imu_data[3];
-  // 		gyroscope_bias["y"] += Data_holder::get()->imu_data[4];
-  // 		gyroscope_bias["z"] += Data_holder::get()->imu_data[5];
+  // 		gyroscope_bias["x"] += DataHolder::get()->imu_data[3];
+  // 		gyroscope_bias["y"] += DataHolder::get()->imu_data[4];
+  // 		gyroscope_bias["z"] += DataHolder::get()->imu_data[5];
 
   // 		taken_samples++;
   // 	} else {
@@ -348,14 +352,14 @@ void BaseDriver::update_imu() {
   // 		imu_msg->header.stamp = ros::Time::now();
   //         imu_msg->header.frame_id = bdg.base_frame;
 
-  // 		imu_msg->angular_velocity.x = Data_holder::get()->imu_data[3] - gyroscope_bias["x"];
-  // 		imu_msg->angular_velocity.y = Data_holder::get()->imu_data[4] - gyroscope_bias["y"];
-  // 		imu_msg->angular_velocity.z = Data_holder::get()->imu_data[5] - gyroscope_bias["z"];
+  // 		imu_msg->angular_velocity.x = DataHolder::get()->imu_data[3] - gyroscope_bias["x"];
+  // 		imu_msg->angular_velocity.y = DataHolder::get()->imu_data[4] - gyroscope_bias["y"];
+  // 		imu_msg->angular_velocity.z = DataHolder::get()->imu_data[5] - gyroscope_bias["z"];
   // 		imu_msg->orientation_covariance = angular_vel_covar;
 
-  // 		imu_msg->linear_acceleration.x = Data_holder::get()->imu_data[0] - acceleration_bias["x"];
-  // 		imu_msg->linear_acceleration.y = Data_holder::get()->imu_data[1] - acceleration_bias["y"];
-  // 		imu_msg->linear_acceleration.z = Data_holder::get()->imu_data[2] - acceleration_bias["z"];
+  // 		imu_msg->linear_acceleration.x = DataHolder::get()->imu_data[0] - acceleration_bias["x"];
+  // 		imu_msg->linear_acceleration.y = DataHolder::get()->imu_data[1] - acceleration_bias["y"];
+  // 		imu_msg->linear_acceleration.z = DataHolder::get()->imu_data[2] - acceleration_bias["z"];
   // 		imu_msg->linear_acceleration_covariance = linear_acc_covar;
 
   // 		imu_pub.publish(imu_msg);
@@ -367,9 +371,9 @@ void BaseDriver::update_imu() {
   //             mag_msg->header.stamp = ros::Time::now();
   //             mag_msg->header.frame_id = bdg.base_frame;
 
-  // 			mag_msg->magnetic_field.x = (Data_holder::get()->imu_data[6] * MILIGAUSS_TO_TESLA_SCALE - (mag_x_max - mag_x_min) / 2 - mag_x_min);
-  // 			mag_msg->magnetic_field.y = (Data_holder::get()->imu_data[7] * MILIGAUSS_TO_TESLA_SCALE - (mag_y_max - mag_y_min) / 2 - mag_y_min);
-  // 			mag_msg->magnetic_field.z = (Data_holder::get()->imu_data[8] * MILIGAUSS_TO_TESLA_SCALE - (mag_z_max - mag_z_min) / 2 - mag_z_min);
+  // 			mag_msg->magnetic_field.x = (DataHolder::get()->imu_data[6] * MILIGAUSS_TO_TESLA_SCALE - (mag_x_max - mag_x_min) / 2 - mag_x_min);
+  // 			mag_msg->magnetic_field.y = (DataHolder::get()->imu_data[7] * MILIGAUSS_TO_TESLA_SCALE - (mag_y_max - mag_y_min) / 2 - mag_y_min);
+  // 			mag_msg->magnetic_field.z = (DataHolder::get()->imu_data[8] * MILIGAUSS_TO_TESLA_SCALE - (mag_z_max - mag_z_min) / 2 - mag_z_min);
   // 			mag_msg->magnetic_field_covariance = magnetic_field_covar;
 
   // 			mag_pub.publish(mag_msg);
@@ -378,9 +382,9 @@ void BaseDriver::update_imu() {
   //             mag_msg->header.stamp = ros::Time::now();
   //             mag_msg->header.frame_id = bdg.base_frame;
 
-  // 			mag_msg->vector.x = (Data_holder::get()->imu_data[6] - (mag_x_max - mag_x_min) / 2 - mag_x_min) * MILIGAUSS_TO_TESLA_SCALE;
-  // 			mag_msg->vector.y = (Data_holder::get()->imu_data[7] - (mag_y_max - mag_y_min) / 2 - mag_y_min) * MILIGAUSS_TO_TESLA_SCALE;
-  // 			mag_msg->vector.z = (Data_holder::get()->imu_data[8] - (mag_z_max - mag_z_min) / 2 - mag_z_min) * MILIGAUSS_TO_TESLA_SCALE;
+  // 			mag_msg->vector.x = (DataHolder::get()->imu_data[6] - (mag_x_max - mag_x_min) / 2 - mag_x_min) * MILIGAUSS_TO_TESLA_SCALE;
+  // 			mag_msg->vector.y = (DataHolder::get()->imu_data[7] - (mag_y_max - mag_y_min) / 2 - mag_y_min) * MILIGAUSS_TO_TESLA_SCALE;
+  // 			mag_msg->vector.z = (DataHolder::get()->imu_data[8] - (mag_z_max - mag_z_min) / 2 - mag_z_min) * MILIGAUSS_TO_TESLA_SCALE;
 
   // 			mag_pub.publish(mag_msg);
   // 		}
