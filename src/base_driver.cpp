@@ -5,11 +5,7 @@
 #include "pibot_bringup/simple_dataframe_master.h"
 
 #include <tf2/LinearMath/Quaternion.h>
-
-// #include <std_msgs/Float32MultiArray.h>
-// #include "serial_transport.h"
-// #include "simple_dataframe_master.h"
-// #include <boost/assign/list_of.hpp>
+#include <chrono>
 
 // static double GRAVITY = -9.81;                       // [m/s/s]
 // static double MILIGAUSS_TO_TESLA_SCALE = 0.0000001;  // From Milligauss [mG] to Tesla [T]
@@ -59,9 +55,9 @@ BaseDriver::BaseDriver()
 
   read_param();
 
-  // if (bdg.use_imu) {
-  //     init_imu();
-  // }
+  if (config_.use_imu) {
+    init_imu();
+  }
 
   RCLCPP_INFO(this->get_logger(), "init ok");
 }
@@ -118,14 +114,14 @@ void BaseDriver::init_cmd_odom() {
 }
 
 void BaseDriver::init_pid_debug() {
-  // if (bdg.out_pid_debug_enable) {
-  //     const char* input_topic_name[MAX_MOTOR_COUNT]={"motor1_input", "motor2_input", "motor3_input", "motor4_input"};
-  //     const char* output_topic_name[MAX_MOTOR_COUNT]={"motor1_output", "motor2_output", "motor3_output", "motor4_output"};
-  //     for (size_t i = 0; i < MAX_MOTOR_COUNT; i++) {
-  //         pid_debug_pub_input[i] = nh.advertise<std_msgs::Int32>(input_topic_name[i], 1000);
-  //         pid_debug_pub_output[i] = nh.advertise<std_msgs::Int32>(output_topic_name[i], 1000);
-  //     }
-  // }
+  if (config_.out_pid_debug_enable) {
+    const char* input_topic_name[MAX_MOTOR_COUNT] = {"motor1_input", "motor2_input", "motor3_input", "motor4_input"};
+    const char* output_topic_name[MAX_MOTOR_COUNT] = {"motor1_output", "motor2_output", "motor3_output", "motor4_output"};
+    for (size_t i = 0; i < MAX_MOTOR_COUNT; i++) {
+      pid_input_pub_[i] = this->create_publisher<std_msgs::msg::Int32>(input_topic_name[i], 10);
+      pid_output_pub_[i] = this->create_publisher<std_msgs::msg::Int32>(output_topic_name[i], 10);
+    }
+  }
 }
 
 void BaseDriver::init_imu() {
@@ -216,21 +212,20 @@ void BaseDriver::work_loop() {
   rclcpp::WallRate loop(100);
   rclcpp::Node::SharedPtr node(this);
   while (rclcpp::ok()) {
-    //     update_param();
+    update_param();
 
     update_odom();
 
-    //     update_pid_debug();
+    update_pid_debug();
 
     update_speed();
 
-    //     if (bdg.use_imu) {
-    //         if (DataHolder::get()->parameter.imu_type == IMU_TYPE_GY65
-    //             || DataHolder::get()->parameter.imu_type == IMU_TYPE_GY85
-    //             || DataHolder::get()->parameter.imu_type == IMU_TYPE_GY87) {
-    //             update_imu();
-    //         }
-    //     }
+    if (config_.use_imu) {
+      if (DataHolder::get()->parameter.imu_type == IMU_TYPE_GY65 || DataHolder::get()->parameter.imu_type == IMU_TYPE_GY85 || DataHolder::get()->parameter.imu_type == IMU_TYPE_GY87) {
+        update_imu();
+      }
+    }
+
     rclcpp::spin_some(node);
 
     loop.sleep();
@@ -238,13 +233,13 @@ void BaseDriver::work_loop() {
 }
 
 void BaseDriver::update_param() {
-  // #ifdef USE_DYNAMIC_RECONFIG
-  //     if (bdg.get_param_update_flag()) {
-  //         frame_->interact(ID_SET_ROBOT_PARAMTER);
-  //         ros::Rate loop(5);
-  //         loop.sleep();
-  //     }
-  // #endif
+#ifdef USE_DYNAMIC_RECONFIG
+  if (config_.get_param_update_flag()) {
+    frame_->interact(ID_SET_ROBOT_PARAMTER);
+    using namespace std::chrono_literals;
+    std::this_thread::sleep_for(200ms);
+  }
+#endif
 }
 
 void BaseDriver::update_odom() {
@@ -293,29 +288,28 @@ void BaseDriver::update_odom() {
 }
 
 void BaseDriver::update_speed() {
-  // if (need_update_speed_) {
-  //     ROS_INFO_STREAM("update_speed");
-  //     need_update_speed_ = !(frame_->interact(ID_SET_VELOCITY));
-  // }
+  if (need_update_speed_) {
+    RCLCPP_INFO(this->get_logger(), "update_speed");
+    need_update_speed_ = !(frame_->interact(ID_SET_VELOCITY));
+  }
 }
 
 void BaseDriver::update_pid_debug() {
-  // if (bdg.out_pid_debug_enable) {
-  //     frame_->interact(ID_GET_PID_DATA);
+  if (config_.out_pid_debug_enable) {
+    frame_->interact(ID_GET_PID_DATA);
 
-  //     for (size_t i = 0; i < MAX_MOTOR_COUNT; i++) {
-  //         pid_debug_msg_input[i].data = DataHolder::get()->pid_data.input[i];
-  //         pid_debug_msg_output[i].data = DataHolder::get()->pid_data.output[i];
+    for (size_t i = 0; i < MAX_MOTOR_COUNT; i++) {
+      pid_input_msg_[i].data = DataHolder::get()->pid_data.input[i];
+      pid_output_msg_[i].data = DataHolder::get()->pid_data.output[i];
 
-  //         pid_debug_pub_input[i].publish(pid_debug_msg_input[i]);
-  //         pid_debug_pub_output[i].publish(pid_debug_msg_output[i]);
-  //     }
-  // }
+      pid_input_pub_[i]->publish(pid_input_msg_[i]);
+      pid_output_pub_[i]->publish(pid_output_msg_[i]);
+    }
+  }
 }
 
 void BaseDriver::update_imu() {
-  // frame_->interact(ID_GET_IMU_DATA);
-
+  frame_->interact(ID_GET_IMU_DATA);
   // if (!use_accelerometer) {
   // 	ROS_ERROR_ONCE("Accelerometer not found!");
   // }

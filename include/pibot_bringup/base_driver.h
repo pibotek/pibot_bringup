@@ -8,15 +8,7 @@
 #include <nav_msgs/msg/odometry.hpp>
 #include <tf2_ros/transform_broadcaster.h>
 #include <geometry_msgs/msg/transform_stamped.hpp>
-
-// #include <std_msgs/Int16.h>
-// #include <std_msgs/Int32.h>
-// #include "pibot_bringup/transport.h"
-// #include "pibot_bringup/dataframe.h"
-// #include <std_srvs/Empty.h>
-// #include <sensor_msgs/Imu.h>
-// #include <sensor_msgs/MagneticField.h>
-// #include <geometry_msgs/Vector3Stamped.h>
+#include <std_msgs/msg/int32.hpp>
 
 class Dataframe;
 class BaseDriver : public rclcpp::Node {
@@ -52,12 +44,12 @@ class BaseDriver : public rclcpp::Node {
   geometry_msgs::msg::TransformStamped odom_tf;
   std::unique_ptr<tf2_ros::TransformBroadcaster> odom_broadcaster_;
 
-  // #define MAX_MOTOR_COUNT 4
-  // ros::Publisher pid_debug_pub_input[MAX_MOTOR_COUNT];
-  // ros::Publisher pid_debug_pub_output[MAX_MOTOR_COUNT];
+#define MAX_MOTOR_COUNT 4
+  rclcpp::Publisher<std_msgs::msg::Int32>::SharedPtr pid_input_pub_[MAX_MOTOR_COUNT];
+  rclcpp::Publisher<std_msgs::msg::Int32>::SharedPtr pid_output_pub_[MAX_MOTOR_COUNT];
 
-  // std_msgs::Int32 pid_debug_msg_input[MAX_MOTOR_COUNT];
-  // std_msgs::Int32 pid_debug_msg_output[MAX_MOTOR_COUNT];
+  std_msgs::msg::Int32 pid_input_msg_[MAX_MOTOR_COUNT];
+  std_msgs::msg::Int32 pid_output_msg_[MAX_MOTOR_COUNT];
 
   bool need_update_speed_{false};
 

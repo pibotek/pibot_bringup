@@ -20,8 +20,8 @@ class BaseDriverConfig {
   void SetRobotParameters(rclcpp::Node* node, Robot_parameter* r);
 
 #ifdef USE_DYNAMIC_RECONFIG
-  // void dynamic_callback(pibot_bringup::pibot_driverConfig& config, uint32_t level);
-  // bool get_param_update_flag();
+  rcl_interfaces::msg::SetParametersResult SetParametersCallback(const std::vector<rclcpp::Parameter>& parameters, rclcpp::Node* node, Robot_parameter* rp);
+  bool get_param_update_flag();
 #endif
  public:
   Robot_parameter* rp;
@@ -47,6 +47,7 @@ class BaseDriverConfig {
 #ifdef USE_DYNAMIC_RECONFIG
   bool param_update_flag_;
 #endif
+  rclcpp::Node::OnSetParametersCallbackHandle::SharedPtr callback_handle_;
   bool set_flag;
 };
 
