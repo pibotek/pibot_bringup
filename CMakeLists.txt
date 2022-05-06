@@ -13,6 +13,8 @@ find_package(nav_msgs REQUIRED)
 find_package(tf2_msgs REQUIRED)
 find_package(tf2_ros REQUIRED)
 find_package(std_msgs REQUIRED)
+find_package(sensor_msgs REQUIRED)
+find_package(std_srvs REQUIRED)
 
 include_directories(
   include include
@@ -32,7 +34,9 @@ ament_target_dependencies(pibot_driver
                       nav_msgs
                       tf2_msgs
                       tf2_ros
-                      std_msgs)
+                      std_msgs
+                      sensor_msgs
+                      std_srvs)
 
 install(TARGETS
   pibot_driver

@@ -7,18 +7,18 @@
 #include <tf2/LinearMath/Quaternion.h>
 #include <chrono>
 
-// static double GRAVITY = -9.81;                       // [m/s/s]
-// static double MILIGAUSS_TO_TESLA_SCALE = 0.0000001;  // From Milligauss [mG] to Tesla [T]
+static double GRAVITY = -9.81;                       // [m/s/s]
+static double MILIGAUSS_TO_TESLA_SCALE = 0.0000001;  // From Milligauss [mG] to Tesla [T]
 
 BaseDriver::BaseDriver()
-    : Node("pibot_dirver")
-//                         , use_accelerometer(true)
-//                         , use_gyroscope(true)
-//                         , use_magnetometer(true)
-//                         , use_mag_msg(true)
-//                         , perform_calibration(true)
-//                         , is_calibrated(false)
-{
+    : Node("pibot_dirver"),
+      use_accelerometer_{true},
+      use_gyroscope_{true},
+      use_magnetometer_{false},
+      use_mag_msg_{true},
+      perform_calibration_{true},
+      is_calibrated_{false},
+      calibration_samples_{500} {
   // init config
   config_.init(this);
 
@@ -125,66 +125,144 @@ void BaseDriver::init_pid_debug() {
 }
 
 void BaseDriver::init_imu() {
-  // pn.param<bool>("imu/use_accelerometer", use_accelerometer, use_accelerometer);
-  // pn.param<bool>("imu/use_gyroscope", use_gyroscope, use_gyroscope);
-  // pn.param<bool>("imu/use_magnetometer", use_magnetometer, use_magnetometer);
-  // pn.param<bool>("imu/perform_calibration", perform_calibration, perform_calibration);
+  rcl_interfaces::msg::ParameterDescriptor descriptor;
+  descriptor.read_only = true;
 
-  // // 创建一个服务,用于接收运行中的校准请求, 可以rosservice命令查看
-  // imu_cal_srv = nh.advertiseService("imu/calibrate_imu", &BaseDriver::calibrateCallback, this);
+  rclcpp::Parameter param;
 
-  // // 是否使能加速度计或陀螺仪
-  // if (use_accelerometer || use_gyroscope) {
-  // 	// 根据配置决定是否进行校准
-  // 	if (!pn.getParam("imu/accelerometer_bias", acceleration_bias) ||
-  // 		!pn.getParam("imu/gyroscope_bias", gyroscope_bias)) {
-  // 		ROS_WARN("IMU calibration NOT found.");
-  // 		is_calibrated = false;
-  // 	} else {
-  // 		ROS_INFO("IMU calibration found.");
-  // 		pn.getParam("imu/accelerometer_bias", acceleration_bias);
-  // 		pn.getParam("imu/gyroscope_bias", gyroscope_bias);
-  // 		is_calibrated = true;
-  // 	}
+  this->declare_parameter("imu/use_accelerometer", use_accelerometer_);
+  if (get_parameter("imu/use_accelerometer", param)) {
+    use_accelerometer_ = param.as_bool();
+  }
 
-  // 	// 校准采样点数
-  // 	pn.param<int>("imu/calibration_samples", calibration_samples, 500);
+  this->declare_parameter("imu/use_gyroscope", use_gyroscope_);
+  if (get_parameter("imu/use_gyroscope", param)) {
+    use_gyroscope_ = param.as_bool();
+  }
 
-  // 	// 转换为ROS标准的sensor_msgs::Imu类型的topic
-  // 	imu_pub = nh.advertise<sensor_msgs::Imu>("imu/data_raw", 1000);
+  this->declare_parameter("imu/use_magnetometer", use_magnetometer_);
+  if (get_parameter("imu/use_magnetometer", param)) {
+    use_magnetometer_ = param.as_bool();
+  }
 
-  // 	// 线加速度协方差
-  // 	pn.param<double>("imu/linear_acc_stdev", linear_acc_stdev, 0.0);
-  // 	fillRowMajor(linear_acc_covar, linear_acc_stdev);
+  this->declare_parameter("imu/perform_calibration", perform_calibration_);
+  if (get_parameter("imu/perform_calibration", param)) {
+    perform_calibration_ = param.as_bool();
+  }
 
-  // 	// 角速度协方差
-  // 	pn.param<double>("imu/angular_vel_stdev", angular_vel_stdev, 0.0);
-  // 	fillRowMajor(angular_vel_covar, angular_vel_stdev);
-  // }
+  // 创建一个服务,用于接收运行中的校准请求, 可以ros2命令查看
+  imu_cal_srv_ = create_service<std_srvs::srv::Empty>("imu/calibrate_imu",
+                                                      std::bind(&BaseDriver::calibrateCallback, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3));
+
+  this->declare_parameter("imu/accelerometer_bias", acceleration_bias_);
+  this->declare_parameter("imu/gyroscope_bias", gyroscope_bias_);
+
+  // 是否使能加速度计或陀螺仪
+  if (use_accelerometer_ || use_gyroscope_) {
+    // 根据配置决定是否进行校准
+    rclcpp::Parameter accelerometer_bias_param, gyroscope_bias_param;
+    if (!get_parameter("imu/accelerometer_bias", accelerometer_bias_param) || !get_parameter("imu/gyroscope_bias", gyroscope_bias_param)) {
+      RCLCPP_WARN(this->get_logger(), "IMU calibration NOT found.");
+      is_calibrated_ = false;
+    } else {
+      RCLCPP_INFO(this->get_logger(), "IMU calibration found.");
+      acceleration_bias_ = accelerometer_bias_param.as_double_array();
+      gyroscope_bias_ = gyroscope_bias_param.as_double_array();
+
+      RCLCPP_INFO(this->get_logger(), "acceleration_bias: %f %f %f, gyroscope_bias: %f %f %f",
+                  acceleration_bias_[0], acceleration_bias_[1], acceleration_bias_[2],
+                  gyroscope_bias_[0], gyroscope_bias_[1], gyroscope_bias_[2]);
+
+      is_calibrated_ = true;
+    }
+
+    declare_parameter<uint16_t>("imu/calibration_samples", 500, descriptor);
+    // 校准采样点数
+    if (get_parameter("imu/calibration_samples", param)) {
+      calibration_samples_ = param.get_value<int>();
+    }
+
+    // 转换为ROS标准的sensor_msgs::Imu类型的topic
+    imu_pub_ = this->create_publisher<sensor_msgs::msg::Imu>("imu/data_raw", rclcpp::SensorDataQoS());
+
+    imu_msg_.header.frame_id = config_.base_frame;
+
+    // 线加速度协方差
+    declare_parameter<double>("imu/linear_acc_stdev", 0.0, descriptor);
+    if (get_parameter("imu/linear_acc_stdev", param)) {
+      const double linear_acceleration_stdev = param.get_value<double>();
+      const double linear_acceleration_variance = linear_acceleration_stdev * linear_acceleration_stdev;
+      imu_msg_.linear_acceleration_covariance[0] = linear_acceleration_variance;
+      imu_msg_.linear_acceleration_covariance[4] = linear_acceleration_variance;
+      imu_msg_.linear_acceleration_covariance[8] = linear_acceleration_variance;
+    }
+
+    // 角速度协方差
+    declare_parameter<double>("imu/angular_vel_stdev", 0.0, descriptor);
+    if (get_parameter("imu/angular_vel_stdev", param)) {
+      const double angular_velocity_stdev = param.get_value<double>();
+      const double angular_velocity_variance = angular_velocity_stdev * angular_velocity_stdev;
+      imu_msg_.angular_velocity_covariance[0] = angular_velocity_variance;
+      imu_msg_.angular_velocity_covariance[4] = angular_velocity_variance;
+      imu_msg_.angular_velocity_covariance[8] = angular_velocity_variance;
+    }
+  }
 
   // // 是否使能磁力计
-  // if (use_magnetometer) {
-  // 	// Magnetometer calibration values.
-  // 	pn.param<double>("mag/x/min", mag_x_min, -0.000078936);
-  // 	pn.param<double>("mag/x/max", mag_x_max,  0.000077924);
-  // 	pn.param<double>("mag/y/min", mag_y_min, -0.000075532);
-  // 	pn.param<double>("mag/y/max", mag_y_max,  0.000076360);
-  // 	pn.param<double>("mag/z/min", mag_z_min, -0.000079948);
-  // 	pn.param<double>("mag/z/max", mag_z_max,  0.000064216);
+  if (use_magnetometer_) {
+    // Magnetometer calibration values.
 
-  // 	pn.param<bool>("imu/use_mag_msg", use_mag_msg, use_mag_msg);
+    declare_parameter<double>("mag/x/min", -0.000078936, descriptor);
+    if (get_parameter("mag/x/min", param)) {
+      mag_x_min_ = param.get_value<double>();
+    }
 
-  // 	if (use_mag_msg) {
-  // 		// 转换为ROS标准的sensor_msgs::MagneticField类型的topic
-  // 		mag_pub = nh.advertise<sensor_msgs::MagneticField>("imu/mag", 5);
+    declare_parameter<double>("mag/x/max", 0.000077924, descriptor);
+    if (get_parameter("mag/x/max", param)) {
+      mag_x_max_ = param.get_value<double>();
+    }
 
-  // 		pn.param<double>("imu/magnetic_field_stdev", magnetic_field_stdev, 0.0);
-  // 		fillRowMajor(magnetic_field_covar, magnetic_field_stdev);
-  // 	} else {
-  // 		// 使用Vector3Stamped类型的topic
-  // 		mag_pub = nh.advertise<geometry_msgs::Vector3Stamped>("imu/mag", 5);
-  // 	}
-  // }
+    declare_parameter<double>("mag/y/min", -0.000075532, descriptor);
+    if (get_parameter("mag/y/min", param)) {
+      mag_y_min_ = param.get_value<double>();
+    }
+
+    declare_parameter<double>("mag/y/max", 0.000076360, descriptor);
+    if (get_parameter("mag/y/max", param)) {
+      mag_y_max_ = param.get_value<double>();
+    }
+
+    declare_parameter<double>("mag/z/min", -0.000079948, descriptor);
+    if (get_parameter("mag/z/min", param)) {
+      mag_z_min_ = param.get_value<double>();
+    }
+
+    declare_parameter<double>("mag/z/max", 0.000064216, descriptor);
+    if (get_parameter("mag/z/max", param)) {
+      mag_z_max_ = param.get_value<double>();
+    }
+
+    this->declare_parameter("imu/use_mag_msg", use_mag_msg_);
+    if (get_parameter("imu/use_mag_msg", param)) {
+      use_mag_msg_ = param.as_bool();
+    }
+
+    if (use_mag_msg_) {
+      // 转换为ROS标准的sensor_msgs::MagneticField类型的topic
+      mag_pub_ = this->create_publisher<sensor_msgs::msg::MagneticField>("imu/mag", rclcpp::SensorDataQoS());
+
+      declare_parameter<double>("imu/magnetic_field_stdev", 0.0, descriptor);
+      if (get_parameter("imu/angular_vel_stdev", param)) {
+        const double magnetic_field_stdev = param.get_value<double>();
+        const double magnetic_field_variance = magnetic_field_stdev * magnetic_field_stdev;
+        mag_msg_.magnetic_field_covariance[0] = magnetic_field_variance;
+        mag_msg_.magnetic_field_covariance[4] = magnetic_field_variance;
+        mag_msg_.magnetic_field_covariance[8] = magnetic_field_variance;
+      }
+
+      mag_msg_.header.frame_id = config_.base_frame;
+    }
+  }
 }
 
 void BaseDriver::read_param() {
@@ -310,109 +388,85 @@ void BaseDriver::update_pid_debug() {
 
 void BaseDriver::update_imu() {
   frame_->interact(ID_GET_IMU_DATA);
-  // if (!use_accelerometer) {
-  // 	ROS_ERROR_ONCE("Accelerometer not found!");
-  // }
-  // if (!use_gyroscope) {
-  // 	ROS_ERROR_ONCE("Gyroscope not found!");
-  // }
-  // if (!use_magnetometer) {
-  // 	ROS_ERROR_ONCE("Magnetometer not found!");
-  // }
+  if (!use_accelerometer_) {
+    RCLCPP_WARN_ONCE(this->get_logger(), "Accelerometer not found!");
+  }
+  if (!use_gyroscope_) {
+    RCLCPP_WARN_ONCE(this->get_logger(), "Gyroscope not found!");
+  }
+  if (!use_magnetometer_) {
+    RCLCPP_WARN_ONCE(this->get_logger(), "Magnetometer not found!");
+  }
 
-  // if (perform_calibration || !is_calibrated) {
-  // 	ROS_WARN_ONCE("Calibrating accelerometer and gyroscope, make sure robot is stationary and level.");
+  if (perform_calibration_ || !is_calibrated_) {
+    RCLCPP_WARN_ONCE(this->get_logger(), "Calibrating accelerometer and gyroscope, make sure robot is stationary and level.");
 
-  // 	static int taken_samples;
+    static int taken_samples;
 
-  // 	if (taken_samples < calibration_samples) {
-  // 		acceleration_bias["x"] += DataHolder::get()->imu_data[0];
-  // 		acceleration_bias["y"] += DataHolder::get()->imu_data[1];
-  // 		acceleration_bias["z"] += DataHolder::get()->imu_data[2];
+    if (taken_samples < calibration_samples_) {
+      acceleration_bias_[0] += DataHolder::get()->imu_data[0];
+      acceleration_bias_[1] += DataHolder::get()->imu_data[1];
+      acceleration_bias_[2] += DataHolder::get()->imu_data[2];
 
-  // 		gyroscope_bias["x"] += DataHolder::get()->imu_data[3];
-  // 		gyroscope_bias["y"] += DataHolder::get()->imu_data[4];
-  // 		gyroscope_bias["z"] += DataHolder::get()->imu_data[5];
+      gyroscope_bias_[0] += DataHolder::get()->imu_data[3];
+      gyroscope_bias_[1] += DataHolder::get()->imu_data[4];
+      gyroscope_bias_[2] += DataHolder::get()->imu_data[5];
 
-  // 		taken_samples++;
-  // 	} else {
-  // 		acceleration_bias["x"] /= calibration_samples;
-  // 		acceleration_bias["y"] /= calibration_samples;
-  // 		acceleration_bias["z"] = acceleration_bias["z"] / calibration_samples + GRAVITY;
+      taken_samples++;
+    } else {
+      acceleration_bias_[0] /= calibration_samples_;
+      acceleration_bias_[1] /= calibration_samples_;
+      acceleration_bias_[2] = acceleration_bias_[2] / calibration_samples_ + GRAVITY;
 
-  // 		gyroscope_bias["x"] /= calibration_samples;
-  // 		gyroscope_bias["y"] /= calibration_samples;
-  // 		gyroscope_bias["z"] /= calibration_samples;
+      gyroscope_bias_[0] /= calibration_samples_;
+      gyroscope_bias_[1] /= calibration_samples_;
+      gyroscope_bias_[2] /= calibration_samples_;
 
-  // 		ROS_INFO("Calibrating accelerometer and gyroscope complete.");
-  // 		ROS_INFO("Bias values can be saved for reuse.");
-  // 		ROS_INFO("Accelerometer: x: %f, y: %f, z: %f", acceleration_bias["x"], acceleration_bias["y"], acceleration_bias["z"]);
-  // 		ROS_INFO("Gyroscope: x: %f, y: %f, z: %f", gyroscope_bias["x"], gyroscope_bias["y"], gyroscope_bias["z"]);
+      RCLCPP_INFO(this->get_logger(), "Calibrating accelerometer and gyroscope complete.");
+      RCLCPP_INFO(this->get_logger(), "Bias values can be saved for reuse.");
+      RCLCPP_INFO(this->get_logger(), "   Accelerometer: x: %f, y: %f, z: %f", acceleration_bias_[0], acceleration_bias_[1], acceleration_bias_[2]);
+      RCLCPP_INFO(this->get_logger(), "   Gyroscope: x: %f, y: %f, z: %f", gyroscope_bias_[0], gyroscope_bias_[1], gyroscope_bias_[2]);
 
-  // 		nh.setParam("imu/accelerometer_bias", acceleration_bias);
-  // 		nh.setParam("imu/gyroscope_bias", gyroscope_bias);
+      set_parameter(rclcpp::Parameter{"imu/accelerometer_bias", acceleration_bias_});
+      set_parameter(rclcpp::Parameter{"imu/gyroscope_bias", gyroscope_bias_});
 
-  // 		is_calibrated = true;
-  // 		perform_calibration = false;
-  // 		taken_samples = 0;
-  // 	}
-  // } else {
-  // 	if (use_accelerometer || use_gyroscope) {
-  // 		sensor_msgs::ImuPtr imu_msg = boost::make_shared<sensor_msgs::Imu>();
-  // 		imu_msg->header.stamp = ros::Time::now();
-  //         imu_msg->header.frame_id = bdg.base_frame;
+      is_calibrated_ = true;
+      perform_calibration_ = false;
+      taken_samples = 0;
+    }
+  } else {
+    auto now = this->get_clock()->now();
+    if (use_accelerometer_ || use_gyroscope_) {
+      imu_msg_.header.stamp = now;
 
-  // 		imu_msg->angular_velocity.x = DataHolder::get()->imu_data[3] - gyroscope_bias["x"];
-  // 		imu_msg->angular_velocity.y = DataHolder::get()->imu_data[4] - gyroscope_bias["y"];
-  // 		imu_msg->angular_velocity.z = DataHolder::get()->imu_data[5] - gyroscope_bias["z"];
-  // 		imu_msg->orientation_covariance = angular_vel_covar;
+      imu_msg_.angular_velocity.x = DataHolder::get()->imu_data[3] - gyroscope_bias_[0];
+      imu_msg_.angular_velocity.y = DataHolder::get()->imu_data[4] - gyroscope_bias_[1];
+      imu_msg_.angular_velocity.z = DataHolder::get()->imu_data[5] - gyroscope_bias_[2];
 
-  // 		imu_msg->linear_acceleration.x = DataHolder::get()->imu_data[0] - acceleration_bias["x"];
-  // 		imu_msg->linear_acceleration.y = DataHolder::get()->imu_data[1] - acceleration_bias["y"];
-  // 		imu_msg->linear_acceleration.z = DataHolder::get()->imu_data[2] - acceleration_bias["z"];
-  // 		imu_msg->linear_acceleration_covariance = linear_acc_covar;
+      imu_msg_.linear_acceleration.x = DataHolder::get()->imu_data[0] - acceleration_bias_[0];
+      imu_msg_.linear_acceleration.y = DataHolder::get()->imu_data[1] - acceleration_bias_[1];
+      imu_msg_.linear_acceleration.z = DataHolder::get()->imu_data[2] - acceleration_bias_[2];
 
-  // 		imu_pub.publish(imu_msg);
-  // 	}
+      imu_pub_->publish(imu_msg_);
+    }
 
-  // 	if (use_magnetometer) {
-  // 		if (use_mag_msg) {
-  // 			sensor_msgs::MagneticFieldPtr mag_msg = boost::make_shared<sensor_msgs::MagneticField>();
-  //             mag_msg->header.stamp = ros::Time::now();
-  //             mag_msg->header.frame_id = bdg.base_frame;
+    if (use_magnetometer_) {
+      if (use_mag_msg_) {
+        mag_msg_.header.stamp = now;
 
-  // 			mag_msg->magnetic_field.x = (DataHolder::get()->imu_data[6] * MILIGAUSS_TO_TESLA_SCALE - (mag_x_max - mag_x_min) / 2 - mag_x_min);
-  // 			mag_msg->magnetic_field.y = (DataHolder::get()->imu_data[7] * MILIGAUSS_TO_TESLA_SCALE - (mag_y_max - mag_y_min) / 2 - mag_y_min);
-  // 			mag_msg->magnetic_field.z = (DataHolder::get()->imu_data[8] * MILIGAUSS_TO_TESLA_SCALE - (mag_z_max - mag_z_min) / 2 - mag_z_min);
-  // 			mag_msg->magnetic_field_covariance = magnetic_field_covar;
+        mag_msg_.magnetic_field.x = (DataHolder::get()->imu_data[6] * MILIGAUSS_TO_TESLA_SCALE - (mag_x_max_ - mag_x_min_) / 2 - mag_x_min_);
+        mag_msg_.magnetic_field.y = (DataHolder::get()->imu_data[7] * MILIGAUSS_TO_TESLA_SCALE - (mag_y_max_ - mag_y_min_) / 2 - mag_y_min_);
+        mag_msg_.magnetic_field.z = (DataHolder::get()->imu_data[8] * MILIGAUSS_TO_TESLA_SCALE - (mag_z_max_ - mag_z_min_) / 2 - mag_z_min_);
 
-  // 			mag_pub.publish(mag_msg);
-  // 		} else {
-  // 			geometry_msgs::Vector3StampedPtr mag_msg = boost::make_shared<geometry_msgs::Vector3Stamped>();
-  //             mag_msg->header.stamp = ros::Time::now();
-  //             mag_msg->header.frame_id = bdg.base_frame;
-
-  // 			mag_msg->vector.x = (DataHolder::get()->imu_data[6] - (mag_x_max - mag_x_min) / 2 - mag_x_min) * MILIGAUSS_TO_TESLA_SCALE;
-  // 			mag_msg->vector.y = (DataHolder::get()->imu_data[7] - (mag_y_max - mag_y_min) / 2 - mag_y_min) * MILIGAUSS_TO_TESLA_SCALE;
-  // 			mag_msg->vector.z = (DataHolder::get()->imu_data[8] - (mag_z_max - mag_z_min) / 2 - mag_z_min) * MILIGAUSS_TO_TESLA_SCALE;
-
-  // 			mag_pub.publish(mag_msg);
-  // 		}
-  // 	}
-  // }
+        mag_pub_->publish(mag_msg_);
+      }
+    }
+  }
 }
 
-// bool BaseDriver::calibrateCallback(std_srvs::Empty::Request& request, std_srvs::Empty::Response& response)
-// {
-// ROS_WARN("Calibrating accelerometer and gyroscope, make sure robot is stationary and level.");
-// perform_calibration = true;
-// return true;
-// }
-
-// void BaseDriver::fillRowMajor(boost::array<double, 9> & covar, double stdev)
-// {
-// std::fill(covar.begin(), covar.end(), 0.0);
-// covar[0] = pow(stdev, 2);  // X(roll)
-// covar[4] = pow(stdev, 2);  // Y(pitch)
-// covar[8] = pow(stdev, 2);  // Z(yaw)
-// }
+void BaseDriver::calibrateCallback(const std::shared_ptr<rmw_request_id_t> __attribute__((unused)) request_header,
+                                   const std::shared_ptr<std_srvs::srv::Empty::Request> __attribute__((unused)) request,
+                                   std::shared_ptr<std_srvs::srv::Empty::Response> __attribute__((unused)) response) {
+  RCLCPP_INFO(this->get_logger(), "Calibrating accelerometer and gyroscope, make sure robot is stationary and level.");
+  perform_calibration_ = true;
+}

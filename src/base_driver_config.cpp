@@ -149,8 +149,8 @@ rcl_interfaces::msg::SetParametersResult BaseDriverConfig::SetParametersCallback
   rcl_interfaces::msg::SetParametersResult result;
   result.successful = true;
   result.reason = "success";
+  bool f = false;
   for (auto& param : parameters) {
-    RCLCPP_INFO(node->get_logger(), "param %s update", param.get_name().c_str());
     if (param.get_name() == "motor1_exchange_flag") {
       RCLCPP_INFO(node->get_logger(), "++param %d", rp->motor_nonexchange_flag);
       std::bitset<8> val(rp->motor_nonexchange_flag);
@@ -215,10 +215,17 @@ rcl_interfaces::msg::SetParametersResult BaseDriverConfig::SetParametersCallback
       rp->imu_type = param.as_int();
     } else if (param.get_name() == "motor_ratio") {
       rp->motor_ratio = param.as_int();
+    } else {
+      continue;
     }
+
+    f = true;
+
+    RCLCPP_INFO(node->get_logger(), "param %s update", param.get_name().c_str());
   }
 
-  DataHolder::dump_params(rp);
+  if (f)
+    DataHolder::dump_params(rp);
 
   param_update_flag_ = true;
   return result;

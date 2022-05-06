@@ -4,11 +4,14 @@
 #include "pibot_bringup/transport.h"
 #include "rclcpp/rclcpp.hpp"
 
-#include <geometry_msgs/msg/twist.hpp>
-#include <nav_msgs/msg/odometry.hpp>
 #include <tf2_ros/transform_broadcaster.h>
 #include <geometry_msgs/msg/transform_stamped.hpp>
+#include <geometry_msgs/msg/twist.hpp>
+#include <nav_msgs/msg/odometry.hpp>
+#include <sensor_msgs/msg/imu.hpp>
+#include <sensor_msgs/msg/magnetic_field.hpp>
 #include <std_msgs/msg/int32.hpp>
+#include <std_srvs/srv/empty.hpp>
 
 class Dataframe;
 class BaseDriver : public rclcpp::Node {
@@ -53,33 +56,31 @@ class BaseDriver : public rclcpp::Node {
 
   bool need_update_speed_{false};
 
-  // // imu
-  // bool use_accelerometer, use_gyroscope, use_magnetometer;
-  // bool use_mag_msg;
+  // imu
+  bool use_accelerometer_, use_gyroscope_, use_magnetometer_;
+  bool use_mag_msg_;
 
-  // bool perform_calibration, is_calibrated;
-  // int calibration_samples;
-  // std::map<std::string,double> acceleration_bias, gyroscope_bias;
+  bool perform_calibration_, is_calibrated_;
+  int calibration_samples_;
+  std::vector<double> acceleration_bias_{0.0, 0.0, 0.0}, gyroscope_bias_{0.0, 0.0, 0.0};
 
-  // // Covariance
-  // double linear_acc_stdev, angular_vel_stdev, magnetic_field_stdev;
-  // boost::array<double, 9> linear_acc_covar;
-  // boost::array<double, 9> angular_vel_covar;
-  // boost::array<double, 9> magnetic_field_covar;
+  // Used for mag scaling
+  double mag_x_min_, mag_x_max_;  //  [T]
+  double mag_y_min_, mag_y_max_;
+  double mag_z_min_, mag_z_max_;
 
-  // // Used for mag scaling
-  // double mag_x_min, mag_x_max;  //  [T]
-  // double mag_y_min, mag_y_max;
-  // double mag_z_min, mag_z_max;
+  // imu pub/sub
+  sensor_msgs::msg::Imu imu_msg_;
+  rclcpp::Publisher<sensor_msgs::msg::Imu>::SharedPtr imu_pub_;
 
-  // // imu pub/sub
-  // ros::Publisher imu_pub;
   // ros::Publisher mag_pub;
+  sensor_msgs::msg::MagneticField mag_msg_;
+  rclcpp::Publisher<sensor_msgs::msg::MagneticField>::SharedPtr mag_pub_;
 
-  // // imu services
-  // ros::ServiceServer imu_cal_srv;
+  // imu services
+  rclcpp::Service<std_srvs::srv::Empty>::SharedPtr imu_cal_srv_;
 
-  // bool calibrateCallback(std_srvs::Empty::Request& request, std_srvs::Empty::Response& response);
-
-  // void fillRowMajor(boost::array<double, 9> & covar, double stdev);
+  void calibrateCallback(const std::shared_ptr<rmw_request_id_t> request_header,
+                         const std::shared_ptr<std_srvs::srv::Empty::Request> request,
+                         std::shared_ptr<std_srvs::srv::Empty::Response> response);
 };

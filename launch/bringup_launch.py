@@ -17,7 +17,13 @@ def generate_launch_description():
                 {"odom_frame": "odom"},
                 {"odom_topic": "odom"},
                 {"out_pid_debug_enable": False},
-                {"freq": 100}
+                {"freq": 100},
+                {"imu/accelerometer_bias": [0.005436, 0.014684, -0.395418]},
+                {"imu/gyroscope_bias": [0.005436, 0.014684, -0.395418]},
+                {"imu/use_accelerometer": True},
+                {"imu/use_gyroscope": True},
+                {"imu/use_magnetometer": True},
+                {"imu/perform_calibration": True},
             ]
         )
     ])
