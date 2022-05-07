@@ -1,0 +1,30 @@
+<launch>
+  <arg name="baudrate" default="$(env PIBOT_DRIVER_BAUDRATE)"/>
+  <arg name="publish_odom_tf" default="true"/>
+  <arg name="use_imu" default="true"/>
+  <arg name="use_accelerometer" default="true"/>
+  <arg name="use_gyroscope" default="true"/>
+  <arg name="use_magnetometer" default="true"/>
+  <arg name="cali_imu_startup" default="true"/>
+
+  <!-- PIBOT DRIVER -->
+  <node name="pibot_driver" pkg="pibot_bringup" exec="pibot_driver" output="screen">
+    <param name="base_frame" value="base_link" />
+    <param name="port" value="/dev/pibot" />
+    <param name="baudrate" value="$(var baudrate)" />
+    <param name="cmd_vel_topic" value="cmd_vel" />
+    <param name="odom_frame" value="odom" />
+    <param name="odom_topic" value="odom"/>
+    <param name="out_pid_debug_enable" value="false" />
+    <param name="publish_odom_tf" value="$(var publish_odom_tf)" />
+    <param name="freq" value="100" />
+
+    <param name="imu/accelerometer_bias" value="[0.005436, 0.014684, -0.395418]" />
+    <param name="imu/gyroscope_bias" value="[-0.035592, 0.080670, 0.001216]" />
+
+    <param name="imu/use_accelerometer" value="$(var use_imu)"/>
+    <param name="imu/use_gyroscope" value="$(var use_imu)"/>
+    <param name="imu/use_magnetometer" value="$(var use_imu)"/>
+    <param name="imu/perform_calibration" value="$(var cali_imu_startup)"/>
+  </node>
+</launch>

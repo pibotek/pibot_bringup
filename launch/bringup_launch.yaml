@@ -1,0 +1,77 @@
+# bringup_launch.yaml
+
+launch:
+
+- arg:
+    name: "baudrate"
+    default: "115200"
+- arg:
+    name: "publish_odom_tf"
+    default: "true"
+- arg:
+    name: "use_imu"
+    default: "true"
+- arg:
+    name: "use_accelerometer"
+    default: "true"
+- arg:
+    name: "use_gyroscope"
+    default: "true"
+- arg:
+    name: "use_magnetometer"
+    default: "true"
+- arg:
+    name: "cali_imu_startup"
+    default: "true"
+
+# pibot bringup
+- node:
+    pkg: "pibot_bringup"
+    exec: "pibot_driver"
+    name: "pibot_driver"
+    param:
+    -
+      name: "base_frame"
+      value: "base_link"
+    -
+      name: "port"
+      value: "/dev/pibot"
+    -
+      name: "baudrate"
+      value: "$(var baudrate)"
+    -
+      name: "cmd_vel_topic"
+      value: "cmd_vel"
+    -
+      name: "odom_frame"
+      value: "odom"
+    -
+      name: "odom_topic"
+      value: "odom"
+    -
+      name: "out_pid_debug_enable"
+      value: false
+    -
+      name: "publish_odom_tf"
+      value: true
+    -
+      name: "freq"
+      value: 100
+    -
+      name: "imu/accelerometer_bias"
+      value: [0.005436, 0.014684, -0.395418]
+    -
+      name: "imu/gyroscope_bias"
+      value: [-0.035592, 0.080670, 0.001216]
+    -
+      name: "imu/use_accelerometer"
+      value: "$(var use_imu)"
+    -
+      name: "imu/use_gyroscope"
+      value: "$(var use_imu)"
+    -
+      name: "imu/use_magnetometer"
+      value: "$(var use_imu)"
+    -
+      name: "imu/perform_calibration"
+      value: "$(var use_imu)"

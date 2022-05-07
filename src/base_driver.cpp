@@ -80,9 +80,9 @@ void BaseDriver::init_cmd_odom() {
   odom_broadcaster_ = std::make_unique<tf2_ros::TransformBroadcaster>(*this);
 
   // init odom_tf
-  odom_tf.header.frame_id = config_.odom_frame;
-  odom_tf.child_frame_id = config_.base_frame;
-  odom_tf.transform.translation.z = 0;
+  odom_tf_.header.frame_id = config_.odom_frame;
+  odom_tf_.child_frame_id = config_.base_frame;
+  odom_tf_.transform.translation.z = 0;
 
   // init odom
   odom_msg_.header.frame_id = config_.odom_frame;
@@ -339,16 +339,16 @@ void BaseDriver::update_odom() {
 
   // publish_tf
   if (config_.publish_tf) {
-    odom_tf.header.stamp = now;
-    odom_tf.transform.translation.x = x;
-    odom_tf.transform.translation.y = y;
+    odom_tf_.header.stamp = now;
+    odom_tf_.transform.translation.x = x;
+    odom_tf_.transform.translation.y = y;
 
-    odom_tf.transform.rotation.x = q.x();
-    odom_tf.transform.rotation.y = q.y();
-    odom_tf.transform.rotation.z = q.z();
-    odom_tf.transform.rotation.w = q.w();
+    odom_tf_.transform.rotation.x = q.x();
+    odom_tf_.transform.rotation.y = q.y();
+    odom_tf_.transform.rotation.z = q.z();
+    odom_tf_.transform.rotation.w = q.w();
 
-    odom_broadcaster_->sendTransform(odom_tf);
+    odom_broadcaster_->sendTransform(odom_tf_);
   }
 
   // publish the message
@@ -387,6 +387,10 @@ void BaseDriver::update_pid_debug() {
 }
 
 void BaseDriver::update_imu() {
+  if (!use_accelerometer_ && !use_gyroscope_ && !use_magnetometer_) {
+    return;
+  }
+
   frame_->interact(ID_GET_IMU_DATA);
   if (!use_accelerometer_) {
     RCLCPP_WARN_ONCE(this->get_logger(), "Accelerometer not found!");

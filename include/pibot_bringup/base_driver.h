@@ -44,7 +44,7 @@ class BaseDriver : public rclcpp::Node {
 
   nav_msgs::msg::Odometry odom_msg_;
 
-  geometry_msgs::msg::TransformStamped odom_tf;
+  geometry_msgs::msg::TransformStamped odom_tf_;
   std::unique_ptr<tf2_ros::TransformBroadcaster> odom_broadcaster_;
 
 #define MAX_MOTOR_COUNT 4
