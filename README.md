@@ -6,21 +6,21 @@ ROS node and test application for PIBOT DRIVER
 - 2) Running catkin_make to build pibot driver Node
 
 # How to run pibot bringup ros package
-- `roslaunch pibot_bring bringup.launch`
+- `ros2 launch  pibot_bringup bringup_launch.py`
 
 # Configure pibot dirver board
-`rosrun rqt_reconfigure rqt_reconfigure`
+`ros2 run rqt_reconfigure rqt_reconfigure`
 
 # Control robot with pibot dirver
 - with keyboard
-`rosrun teleop_twist_keyboard teleop_twist_keyboard.py`
+`ros2 run teleop_twist_keyboard teleop_twist_keyboard`
 - with joystick
-    > install dependent package 
+    > install dependent package
         `sudo apt-get install ros-$ROS_DISTRO-joy ros-$ROS_DISTRO-teleop-twist-joy`
     - non-holonomic robot 
-        `roslaunch pibot_bringup joystick.launch`
+        `ros2 launch pibot_bringup joystick_launch.py`
     - holonomic robot 
-        `roslaunch pibot_bringup joystick.launch holonomic:=true`
+        `ros2 launch pibot_bringup joystick_launch.py joy_config:=joystick-holonomic`
 
 # Topic
 

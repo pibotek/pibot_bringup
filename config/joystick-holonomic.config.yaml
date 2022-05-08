@@ -1,15 +1,20 @@
-axis_linear:
-  x: 1                  # 遥感索引1的值表示控制linear的x方向(前进后退)
-  y: 0                  # 遥感索引0的值表示控制linear的y方向(左右平移)
-scale_linear:
-  x: 0.20               # 低速运动linear x最大值
-  y: 0.20               # 低速运动linear y最大值
+teleop_twist_joy_node:
+  ros__parameters:
+    axis_linear:  # 遥感索引1的值表示控制linear     索引rostopic echo joy可以看出axes数字 
+      x: 1
+      y: 0
+    scale_linear: # 低速运动linear最大值
+      x: 0.25
+      y: 0.25
+    scale_linear_turbo: # 高度速运动linear最大值
+      x: 0.6
 
-axis_angular:
-  yaw: 3                # 遥感索引3的值表示控制angular(旋转)
-scale_angular:          
-  yaw: 1                # 低速运动angular最大值
+    axis_angular:  # 遥感索引0的表示angular方向
+      yaw: 3
+    scale_angular:  # 低速运动angular最大值
+      yaw: 1.0
+    scale_angular_turbo:  # 高度速运动angular最大值
+      yaw: 1.2
 
-enable_button: 0        # 实现低速运动使能键
-enable_turbo_button: -1 # 实现高速度运动使能键
-
+    enable_button: 0  # 实现低速运动使能键
+    enable_turbo_button: -1  # 实现高速度运动使能键
