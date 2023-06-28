@@ -1,3 +1,6 @@
+#ifndef PIBOT_BRINGUP_BASE_DIRVER_H_
+#define PIBOT_BRINGUP_BASE_DIRVER_H_
+
 #include <ros/ros.h>
 
 #include <boost/shared_ptr.hpp>
@@ -15,100 +18,105 @@
 #include <sensor_msgs/MagneticField.h>
 #include <geometry_msgs/Vector3Stamped.h>
 
-class BaseDriver
-{
-private:
-	BaseDriver();
+namespace pibot {
 
-public:
-	static BaseDriver* Instance() {
-		if (instance == NULL)
-		instance = new BaseDriver();
+class BaseDriver {
+ private:
+  BaseDriver();
 
-		return instance;
-	}
-	~BaseDriver();
-	void work_loop();
+ public:
+  static BaseDriver* Instance() {
+    if (instance == NULL) instance = new BaseDriver();
 
-private:
-	void cmd_vel_callback(const geometry_msgs::Twist& vel_cmd);
-	void init_cmd_odom();
-	void init_pid_debug();
-	void init_imu();
-	void read_param();
+    return instance;
+  }
+  ~BaseDriver();
+  void work_loop();
 
-	void update_param();
-	void update_odom();
-	void update_speed();
-	void update_pid_debug();
-	void update_imu();
+ private:
+  void cmd_vel_callback(const geometry_msgs::Twist& vel_cmd);
+  void init_cmd_odom();
+  void init_pid_debug();
+  void init_imu();
+  void read_param();
 
-public:
-	BaseDriverConfig& getBaseDriverConfig() {
-		return bdg;
-	}
+  void update_param();
+  void update_odom();
+  void update_speed();
+  void update_pid_debug();
+  void update_imu();
 
-	ros::NodeHandle* getNodeHandle(){
-		return &nh;
-	}
+ public:
+  BaseDriverConfig& getBaseDriverConfig() {
+    return bdg;
+  }
 
-	ros::NodeHandle* getPrivateNodeHandle() {
-		return &pn;
-	}
-private:
-	static BaseDriver* instance;
+  ros::NodeHandle* getNodeHandle() {
+    return &nh;
+  }
 
-	BaseDriverConfig bdg;
-	boost::shared_ptr<Transport> trans;
-	boost::shared_ptr<Dataframe> frame;
+  ros::NodeHandle* getPrivateNodeHandle() {
+    return &pn;
+  }
 
-	ros::Subscriber cmd_vel_sub;
+ private:
+  static BaseDriver* instance;
 
-	ros::Publisher odom_pub;
-	
-	nav_msgs::Odometry odom;
-	geometry_msgs::TransformStamped odom_trans;
-	tf::TransformBroadcaster odom_broadcaster;
-	
-	ros::NodeHandle nh;
-	ros::NodeHandle pn;
-	
-	#define MAX_MOTOR_COUNT 4
-	ros::Publisher pid_debug_pub_input[MAX_MOTOR_COUNT];
-	ros::Publisher pid_debug_pub_output[MAX_MOTOR_COUNT];
+  BaseDriverConfig bdg;
+  boost::shared_ptr<Transport> trans;
+  boost::shared_ptr<Dataframe> frame;
 
-	std_msgs::Int32 pid_debug_msg_input[MAX_MOTOR_COUNT];
-	std_msgs::Int32 pid_debug_msg_output[MAX_MOTOR_COUNT];
+  ros::Subscriber cmd_vel_sub;
 
-	bool need_update_speed;
+  ros::Publisher odom_pub;
 
-	// imu
-    bool use_accelerometer, use_gyroscope, use_magnetometer;
-    bool use_mag_msg;
+  nav_msgs::Odometry odom;
+  geometry_msgs::TransformStamped odom_trans;
+  tf::TransformBroadcaster odom_broadcaster;
 
-    bool perform_calibration, is_calibrated;
-    int calibration_samples;
-    std::map<std::string,double> acceleration_bias, gyroscope_bias;
+  ros::NodeHandle nh;
+  ros::NodeHandle pn;
 
-    // Covariance
-    double linear_acc_stdev, angular_vel_stdev, magnetic_field_stdev;
-    boost::array<double, 9> linear_acc_covar;
-    boost::array<double, 9> angular_vel_covar;
-    boost::array<double, 9> magnetic_field_covar;
+#define MAX_MOTOR_COUNT 4
+  ros::Publisher pid_debug_pub_input[MAX_MOTOR_COUNT];
+  ros::Publisher pid_debug_pub_output[MAX_MOTOR_COUNT];
 
-    // Used for mag scaling
-    double mag_x_min, mag_x_max;  //  [T]
-    double mag_y_min, mag_y_max;
-    double mag_z_min, mag_z_max;
+  std_msgs::Int32 pid_debug_msg_input[MAX_MOTOR_COUNT];
+  std_msgs::Int32 pid_debug_msg_output[MAX_MOTOR_COUNT];
 
-    // imu pub/sub
-    ros::Publisher imu_pub;
-    ros::Publisher mag_pub;
+  bool need_update_speed;
 
-    // imu services
-    ros::ServiceServer imu_cal_srv;
+  // imu
+  bool use_accelerometer, use_gyroscope, use_magnetometer;
+  bool use_mag_msg;
 
-	bool calibrateCallback(std_srvs::Empty::Request& request, std_srvs::Empty::Response& response);
+  bool perform_calibration, is_calibrated;
+  int calibration_samples;
+  std::map<std::string, double> acceleration_bias, gyroscope_bias;
 
-	void fillRowMajor(boost::array<double, 9> & covar, double stdev);
+  // Covariance
+  double linear_acc_stdev, angular_vel_stdev, magnetic_field_stdev;
+  boost::array<double, 9> linear_acc_covar;
+  boost::array<double, 9> angular_vel_covar;
+  boost::array<double, 9> magnetic_field_covar;
+
+  // Used for mag scaling
+  double mag_x_min, mag_x_max;  //  [T]
+  double mag_y_min, mag_y_max;
+  double mag_z_min, mag_z_max;
+
+  // imu pub/sub
+  ros::Publisher imu_pub;
+  ros::Publisher mag_pub;
+
+  // imu services
+  ros::ServiceServer imu_cal_srv;
+
+  bool calibrateCallback(std_srvs::Empty::Request& request, std_srvs::Empty::Response& response);
+
+  void fillRowMajor(boost::array<double, 9>& covar, double stdev);
 };
+
+}  // namespace pibot
+
+#endif

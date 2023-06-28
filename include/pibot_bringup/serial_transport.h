@@ -1,30 +1,33 @@
-#ifndef TRANSPORT_SERIAL_H_
-#define TRANSPORT_SERIAL_H_
+#ifndef PIBOT_BRINGUP_SERIAL_TRANSPORT_H_
+#define PIBOT_BRINGUP_SERIAL_TRANSPORT_H_
 
 #include "transport.h"
 
-class Serial_transport : public Transport
-{
-public:
-	Serial_transport (std::string url, int32_t baudrate);
-	~Serial_transport();
-	bool init();
-	Buffer read();
+namespace pibot {
 
-	void write(Buffer &data);
+class SerialTransport : public Transport {
+ public:
+  SerialTransport(std::string url, int32_t baudrate);
+  ~SerialTransport();
+  bool init();
+  Buffer read();
 
-    void set_timeout(int t);
-    bool is_timeout();
-private:
-	void mainRun();
-	
-	unsigned long m_timeout_us;
-	
-	bool m_timeoutFlag;
-    int m_fd;
-	std::string m_port;
-	int32_t m_baudrate;
+  void write(Buffer& data);
+
+  void set_timeout(int t);
+  bool is_timeout();
+
+ private:
+  void mainRun();
+
+  unsigned long m_timeout_us;
+
+  bool m_timeoutFlag;
+  int m_fd;
+  std::string m_port;
+  int32_t m_baudrate;
 };
 
+}  // namespace pibot
 
 #endif /* TRANSPORT_SERIAL_H_ */
